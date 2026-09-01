@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>경제인문사회연구회 업무연락방 요구자료 배분 게시판</title>
+<!--
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  배포 방법 (스케줄표와 동일한 방식)
+  1. 파이어베이스 콘솔(console.firebase.google.com)에서
+     기존 프로젝트를 열거나 새 프로젝트 생성
+  2. 빌드 > Realtime Database > 데이터베이스 만들기 (테스트 모드)
+     ※ 기존 스케줄표 프로젝트를 그대로 써도 됩니다.
+        데이터가 nrcBoard 경로에 따로 저장되어 섞이지 않아요.
+  3. 프로젝트 설정 > 일반 > 내 앱 > 웹앱 추가 > firebaseConfig 복사
+  4. 아래 firebaseConfig 부분에 붙여넣기
+  5. 이 파일을 GitHub Pages 또는 Netlify에 업로드
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
+:root{
+  --ink:#191F28; --body:#333D4B; --sub:#4E5968; --faint:#8B95A1;
+  --blue:#1B64DA; --blue-bg:#DCEBFF; --red:#E02A3F; --red-bg:#FBDCE0;
+  --orange:#C25E00; --bg:#F4F6F9; --card:#fff; --hair:#F0F2F5; --field:#F2F4F6; --line:#E5E8EB;
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 10px 30px -14px rgba(16,24,40,.14);
+}
+*{box-sizing:border-box}
+::selection{background:#CFE2FF}
+body{margin:0;background:var(--bg);color:var(--ink);letter-spacing:-.2px;
+  font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+}
+button{font-family:inherit;cursor:pointer;border:none;transition:opacity .12s,transform .06s,box-shadow .12s}
+button:hover{opacity:.9} button:active{transform:scale(.97)}
+input,select,textarea{font-family:inherit;outline:none;border:none;color:var(--ink)}
+textarea:focus,select:focus,input:focus{box-shadow:0 0 0 2px rgba(27,100,218,.35)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#D5DAE0;border-radius:99px;border:3px solid var(--bg)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+.card{background:var(--card);border-radius:22px;box-shadow:var(--shadow)}
+
+header{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:34px 0 20px}
+header h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.6px;line-height:1.3}
+.subtitle{font-size:13px;color:var(--sub);margin-top:6px;display:flex;align-items:center;gap:6px}
+.subtitle::before{content:'';width:6px;height:6px;border-radius:99px;background:var(--blue)}
+.hctrl{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.btn-white{background:#fff;color:var(--body);border-radius:12px;padding:10px 15px;font-size:13px;font-weight:600;box-shadow:0 1px 4px rgba(16,24,40,.1)}
+.btn-white:hover{box-shadow:0 3px 10px rgba(16,24,40,.14);opacity:1}
+.sel-white{background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;box-shadow:0 1px 4px rgba(16,24,40,.1);cursor:pointer}
+.badge-admin{background:var(--blue-bg);color:var(--blue);padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700}
+.live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);font-weight:600}
+.live::before{content:'';width:7px;height:7px;border-radius:999px;background:#01B368;box-shadow:0 0 0 3px rgba(1,179,104,.18)}
+
+.stats{display:flex;gap:14px;flex-wrap:wrap;padding-bottom:18px}
+.stat{flex:1 1 120px;padding:18px 22px}
+.stat .lb{font-size:12.5px;color:var(--sub);font-weight:600}
+.stat .n{font-size:30px;font-weight:800;margin-top:5px;letter-spacing:-1px;line-height:1}
+
+.cols{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;padding-bottom:28px}
+main.card{flex:1 1 55%;min-width:320px;overflow:hidden}
+aside.card{flex:1 1 320px;max-width:420px;padding:24px 26px;position:sticky;top:16px}
+
+.toolbar{display:flex;gap:7px;padding:20px 22px 14px;align-items:center;flex-wrap:wrap}
+.pill{background:var(--field);color:var(--body);border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600}
+.pill.on{background:var(--blue);color:#fff;box-shadow:0 4px 12px -4px rgba(27,100,218,.5)}
+.search{background:var(--field);border-radius:999px;padding:9px 16px;font-size:13px;flex:1 1 150px;max-width:230px;min-width:130px}
+.btn-primary{background:var(--blue);color:#fff;border-radius:13px;padding:11px 18px;font-size:13.5px;font-weight:700;box-shadow:0 6px 16px -6px rgba(27,100,218,.55)}
+.btn-primary:hover{opacity:1;box-shadow:0 8px 20px -6px rgba(27,100,218,.65);transform:translateY(-1px)}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{padding:11px 22px;border-bottom:1px solid var(--hair);font-weight:700;font-size:12px;color:var(--faint);text-align:left}
+td{padding:16px 22px;border-bottom:1px solid var(--hair);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr.row{cursor:pointer;transition:background .12s}
+tr.row:hover{background:#F5F7FA}
+tr.row.sel{background:#EAF2FF;box-shadow:inset 3px 0 0 var(--blue)}
+tr.row.done{opacity:.5}
+.t-title{font-weight:600;line-height:1.5;font-size:14.5px}
+.t-title.mine{font-weight:700}
+.t-meta{color:var(--sub);font-size:12.5px;margin-top:5px}
+.t-meta b{font-weight:700;color:var(--body)}
+.obj-flag{color:var(--orange);font-size:11px;margin-left:8px;font-weight:700;background:#FFF0D6;padding:2px 7px;border-radius:99px}
+.dept-name{font-weight:500;color:var(--body);font-size:13px;white-space:nowrap}
+.dept-badge{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block;margin:2px 4px 2px 0}
+.dept-pick{display:flex;flex-wrap:wrap;gap:6px}
+.dp{padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:600;background:#fff;box-shadow:inset 0 0 0 1px var(--line);color:var(--sub);cursor:pointer;transition:all .12s;user-select:none}
+.dp.on{box-shadow:none;font-weight:700}
+.date-in{background:#fff;border-radius:12px;padding:8px 11px;font-size:12.5px;box-shadow:0 1px 3px rgba(16,24,40,.08);font-family:inherit}
+.dept-badge.mine{box-shadow:0 0 0 1.5px currentColor}
+.dept-name.mine{font-weight:700;color:var(--blue)}
+.tag-collect{margin-left:6px;font-size:11px;color:var(--sub);background:var(--field);border-radius:999px;padding:3px 9px;font-weight:600;white-space:nowrap}
+.chip{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block}
+.dd-urgent{color:var(--red);font-weight:800;font-size:13px;white-space:nowrap}
+.dd-normal{color:var(--ink);font-weight:600;font-size:13px;white-space:nowrap}
+.dd-date{color:var(--faint);font-weight:400;margin-left:6px;font-size:12px}
+.empty{padding:56px 24px;text-align:center;color:var(--sub);font-size:13.5px;line-height:1.7}
+
+.d-src{font-size:12px;color:var(--faint);font-weight:600}
+.d-title{font-size:17.5px;line-height:1.5;margin:7px 0 5px;font-weight:700;letter-spacing:-.4px}
+.d-link{font-size:12.5px;color:var(--blue);margin-bottom:18px;font-weight:600}
+.d-grid{display:grid;grid-template-columns:76px 1fr;row-gap:13px;align-items:center;font-size:13px;background:#F6F8FA;border-radius:18px;padding:18px}
+.d-grid .lb{color:var(--sub);font-weight:600}
+.sel-soft{background:#fff;border-radius:12px;padding:9px 12px;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.st-btn{background:#fff;color:var(--sub);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;box-shadow:inset 0 0 0 1px var(--line)}
+.d-note{font-size:12px;color:var(--sub);line-height:1.6}
+.cm-head{font-size:14.5px;font-weight:700;margin:22px 0 10px}
+.cm-empty{font-size:12.5px;color:var(--sub);margin:0 0 10px;line-height:1.6}
+.cm{margin-bottom:9px;padding:12px 15px;background:#F6F8FA;border-radius:15px}
+.cm.obj{background:#FFF0D6}
+.cm-meta{font-size:12px;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+.cm-time{color:var(--faint);margin-left:auto;font-weight:400}
+.cm-obj-tag{color:var(--orange);font-weight:700;font-size:11px}
+.cm-body{font-size:13px;line-height:1.6;color:var(--body)}
+.cm-input{width:100%;background:var(--field);border-radius:15px;padding:13px 15px;font-size:13px;resize:vertical}
+.cm-foot{display:flex;align-items:center;gap:10px;margin-top:9px}
+.obj-label{font-size:12.5px;color:var(--orange);display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:600}
+.del-btn{background:transparent;color:var(--faint);padding:4px 2px;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.d-sep{margin-top:18px;padding-top:13px;border-top:1px solid var(--hair)}
+
+.overlay{position:fixed;inset:0;background:rgba(10,16,25,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:26px;width:min(640px,100%);padding:28px 30px;max-height:85vh;overflow-y:auto;box-shadow:0 24px 60px -12px rgba(16,24,40,.35)}
+.modal h3{margin:0 0 5px;font-size:19px;font-weight:800;letter-spacing:-.4px}
+.modal .desc{margin:0 0 15px;font-size:13px;color:var(--sub);line-height:1.6}
+.paste{width:100%;background:var(--field);border-radius:16px;padding:15px 17px;font-size:12.5px;resize:vertical;line-height:1.6}
+.parse-err{font-size:13px;color:var(--red);margin-top:14px;font-weight:600}
+.preview{margin-top:16px;border-radius:18px;padding:20px;background:#F6F8FA}
+.p-grid{display:grid;grid-template-columns:88px 1fr;row-gap:11px;align-items:center;font-size:13px}
+.p-grid .lb{color:var(--sub);font-weight:600}
+.tag-auto{font-size:11.5px;color:var(--blue);background:var(--blue-bg);padding:5px 11px;border-radius:999px;font-weight:700}
+.btn-register{width:100%;padding:14px 0;font-size:14.5px;border-radius:15px;margin-top:18px}
+footer{padding:8px 0 32px;font-size:12px;color:var(--faint);line-height:1.7}
+.setup{max-width:560px;margin:80px auto;padding:32px}
+.setup h2{margin:0 0 10px;font-size:18px}
+.setup p{font-size:13.5px;color:var(--body);line-height:1.7;margin:0 0 8px}
+.setup code{background:var(--field);border-radius:6px;padding:2px 6px;font-size:12.5px}
+</style>
+</head>
+<body>
+
+<div id="app" class="wrap" style="display:none">
+  <header>
+    <div>
+      <h1>경제인문사회연구회 업무연락방 요구자료 배분 게시판</h1>
+      <div class="subtitle">에너지경제연구원 접수대장</div>
+    </div>
+    <div class="hctrl">
+      <span class="live">실시간 동기화</span>
+      <button class="btn-white" onclick="App.exportCSV()" title="전체 건을 CSV 파일로 내려받기">엑셀 내보내기</button>
+      <select id="roleSel" class="sel-white" onchange="App.changeRole(this.value)"></select>
+      <span id="adminBadge" class="badge-admin" style="display:none">배분 권한</span>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="cols">
+    <main class="card">
+      <div class="toolbar" id="toolbar"></div>
+      <table>
+        <thead><tr><th>요청 건명</th><th>담당 부서</th><th>마감</th><th>상태</th></tr></thead>
+        <tbody id="listBody"></tbody>
+      </table>
+    </main>
+    <aside class="card" id="detail"></aside>
+  </div>
+
+  <footer>
+    다른 부서가 변경하면 화면에 실시간으로 반영됩니다. 부서 선택은 각자 브라우저에 저장되며, 처음 접속하면 본인 부서를 선택해 주세요.
+  </footer>
+</div>
+
+<div id="setupNotice" class="card setup" style="display:none">
+  <h2>초기 설정이 필요합니다</h2>
+  <p>이 파일의 <code>firebaseConfig</code> 부분에 파이어베이스 콘솔에서 복사한 구성을 붙여넣어 주세요.</p>
+  <p>파일 상단 주석에 단계별 안내가 있습니다. 스케줄표 프로젝트의 구성을 그대로 사용해도 됩니다.</p>
+</div>
+
+<!-- 메일 붙여넣기 등록 모달 -->
+<div class="overlay" id="addOverlay" onclick="App.closeAdd(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>메일 붙여넣기 등록</h3>
+    <p class="desc">연구회 업무연락 메일 전체를 복사해서 붙여넣으면 문서ID, 요청기관, 마감일을 자동으로 읽어옵니다.</p>
+    <textarea id="pasteText" class="paste" rows="8" placeholder="예)
+[NRC][26-00860] [국무조정실] ○○ 안내 요청 건 등록안내
+- 문서ID : 26-00860
+- 요청기관 : 국무조정실
+- 업무구분 : 인사
+- 요 청 일 : 2026-08-26
+- 제출기한 : 2026-08-26"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <button class="btn-primary" onclick="App.analyze()">내용 분석</button>
+      <span id="parseHint" style="font-size:12.5px;color:var(--sub)"></span>
+    </div>
+    <div id="parseResult"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ─────────────────────────────────────────────────────
+   ① 파이어베이스 구성 붙여넣기 (콘솔 > 프로젝트 설정 > 내 앱)
+   ───────────────────────────────────────────────────── */
+const firebaseConfig = {
+  databaseURL: "https://ppddd-32f91-default-rtdb.firebaseio.com"
+};
+
+/* ── 기본 설정 ── */
+const DEPTS = ["지식정보화실","성과평가단","연구기획팀","예산기획팀","성과홍보팀","인재개발팀","운영지원팀","재무회계팀","감사실"];
+const ADMIN = "예산기획팀";
+const ADMIN_CODE = "2296"; // 예산기획팀(배분 권한) 전환 시 입력하는 코드 — 원하는 값으로 바꾸세요
+const DB_PATH = "nrcBoard/items"; // 스케줄표 데이터와 분리된 전용 경로
+
+const STATUS = {
+  unassigned:{label:"미지정",bg:"#E5E8EB",fg:"#57606A"},
+  assigned:{label:"지정됨",bg:"#DCEBFF",fg:"#1B64DA"},
+  working:{label:"작성중",bg:"#FFE9C4",fg:"#B25B00"},
+  replied:{label:"회신완료",bg:"#D2EEEE",fg:"#067A7A"},
+  done:{label:"제출완료",bg:"#D6F0E2",fg:"#018254"},
+};
+const SUBMIT = {direct:"부서 직접 제출", collect:"예산기획팀 취합"};
+
+// 부서별 고유 색 [배경, 글자]
+const DEPT_COLORS = {
+  "지식정보화실":["#E9E6FB","#5B49C9"],
+  "성과평가단":["#D8EFF7","#0A7EA3"],
+  "연구기획팀":["#DCEBFF","#1B64DA"],
+  "예산기획팀":["#DFE4F5","#2F3F8F"],
+  "성과홍보팀":["#FBE0ED","#C2255C"],
+  "인재개발팀":["#FFE4DB","#CE4A26"],
+  "운영지원팀":["#DCF1D9","#3B7A2A"],
+  "재무회계팀":["#F6EDCF","#8F6D08"],
+  "감사실":["#E5E9EE","#4A5568"],
+};
+function deptBadge(d, mine){
+  const c = DEPT_COLORS[d] || ["#F2F4F6","#4E5968"];
+  return `<span class="dept-badge${mine?" mine":""}" style="background:${c[0]};color:${c[1]}">${esc(d)}</span>`;
+}
+
+const DEPT_SUGGEST = [
+  [/인사|복무|포상|교육|채용|인재/,"인재개발팀"],
+  [/감사|청렴|윤리|부패|반부패/,"감사실"],
+  [/회계|세무|자금|급여|지출증빙/,"재무회계팀"],
+  [/예산|재정|결산|출연금/,"예산기획팀"],
+  [/평가|실태조사|경영공시/,"성과평가단"],
+  [/홍보|공모|대외|협력|보도/,"성과홍보팀"],
+  [/정보|보안|전산|시스템|데이터/,"지식정보화실"],
+  [/계약|시설|물품|자산|총무|안전/,"운영지원팀"],
+  [/기획|연구|성과/,"연구기획팀"],
+];
+
+/* ── 유틸 ── */
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const todayISO = () => new Date().toISOString().slice(0,10);
+const dday = (d) => { const t=new Date(); t.setHours(0,0,0,0); const x=new Date(d); x.setHours(0,0,0,0); return Math.round((x-t)/86400000); };
+const md = (d) => (d||"").slice(5).replace("-","/");
+const nowStamp = () => { const n=new Date(), p=(x)=>String(x).padStart(2,"0"); return `${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`; };
+const getDocId = (i) => i.docId || ((i.link||"").match(/\d{2}-\d{5}/)||[])[0] || "";
+// 담당 부서 목록 (구버전 데이터의 단일 dept도 배열로 취급)
+const getDepts = (i) => Array.isArray(i.depts) ? i.depts : (i.dept ? [i.dept] : []);
+function deptPickHtml(selected, click){
+  return DEPTS.map((d)=>{
+    const on = selected.includes(d);
+    const c = DEPT_COLORS[d];
+    return `<span class="dp${on?" on":""}" style="${on?`background:${c[0]};color:${c[1]}`:""}" onclick="${click(d)}">${d}</span>`;
+  }).join("");
+}
+const commentsArr = (i) => i.comments ? Object.values(i.comments) : [];
+
+function parseMail(text){
+  const pick = (re) => { const m=text.match(re); return m ? m[1].trim() : ""; };
+  const docId = pick(/-\s*문서\s*ID\s*[::]\s*(\S+)/);
+  const source = pick(/-\s*요청기관\s*[::]\s*(.+)/);
+  const category = pick(/-\s*업무구분\s*[::]\s*(.+)/) || pick(/-\s*업무분야\s*[::]\s*(.+)/);
+  const received = pick(/-\s*요\s*청\s*일\s*[::]\s*([\d-]+)/);
+  const due = pick(/-\s*제출기한\s*[::]\s*([\d-]+)/);
+  let title = "";
+  const t = text.match(/\[NRC\]\[[\d-]+\]\s*(.+)/);
+  if (t) title = t[1].replace(/등록안내.*$/,"").replace(/새 창으로.*$/,"").replace(/^\[[^\]]+\]\s*/,"").trim();
+  let suggested = "";
+  const basis = category + " " + title;
+  for (const [re, dept] of DEPT_SUGGEST){ if (re.test(basis)){ suggested = dept; break; } }
+  const found = [docId, source, received, due, title].filter(Boolean).length;
+  return found >= 2 ? {docId, source, category, received, due, title, suggested} : null;
+}
+
+/* ── 상태 ── */
+let items = {};        // {id: item}
+let role = localStorage.getItem("nrcBoard-dept") || "";
+if (role && !DEPTS.includes(role)) role = "";
+let adminOk = localStorage.getItem("nrcBoard-adminok") === "1";
+if (role === ADMIN && !adminOk) role = "";
+let openId = null;
+let filter = "전체";
+let query = "";
+let parsed = null;
+let addDepts = new Set();
+let ref = null;
+function showErr(e){
+  const msg = String(e && e.message || e);
+  if (/permission/i.test(msg)) alert("저장 권한이 없습니다.\n파이어베이스 콘솔 > Realtime Database > 규칙 탭에서 nrcBoard 경로의 read/write를 true로 게시했는지 확인해 주세요.");
+  else alert("저장에 실패했습니다: " + msg);
+}
+
+const isAdmin = () => role === ADMIN;
+
+/* ── 파이어베이스 초기화 ── */
+function init(){
+  if (!firebaseConfig || !firebaseConfig.databaseURL){
+    document.getElementById("setupNotice").style.display = "block";
+    return;
+  }
+  firebase.initializeApp(firebaseConfig);
+  ref = firebase.database().ref(DB_PATH);
+  ref.on("value", (snap) => { items = snap.val() || {}; render(); },
+    (e) => {
+      const el = document.querySelector(".live");
+      if (el){ el.textContent = "연결 실패: 규칙 확인 필요"; el.style.color = "var(--red)"; }
+      showErr(e);
+    });
+  firebase.database().ref(".info/connected").on("value", (s2) => {
+    const el = document.querySelector(".live");
+    if (!el) return;
+    if (s2.val()){ el.textContent = "실시간 동기화"; el.style.color = ""; }
+    else { el.textContent = "서버 연결 중…"; }
+  });
+  document.getElementById("app").style.display = "block";
+  const sel = document.getElementById("roleSel");
+  sel.innerHTML = `<option value="" disabled hidden ${role?"":"selected"}>부서 선택</option>` +
+    DEPTS.map((d)=>`<option ${d===role?"selected":""}>${d}</option>`).join("");
+  render();
+}
+
+/* ── 화면 그리기 ── */
+function chip(s){ const c=STATUS[s]||STATUS.unassigned; return `<span class="chip" style="background:${c.bg};color:${c.fg}">${c.label}</span>`; }
+function ddayHtml(due, status){
+  const d = dday(due);
+  if (status==="done") return `<span style="color:var(--sub);font-size:12px">마감 ${md(due)}</span>`;
+  const urgent = d<=3, past = d<0;
+  const main = past ? `기한경과 ${-d}일` : d===0 ? "오늘 마감" : `D-${d}`;
+  return `<span class="${urgent||past?"dd-urgent":"dd-normal"}">${main}<span class="dd-date">${md(due)}</span></span>`;
+}
+
+function list(){
+  let arr = Object.values(items).sort((a,b)=>(a.status==="done")-(b.status==="done") || new Date(a.due)-new Date(b.due));
+  if (filter==="내 부서") arr = arr.filter((i)=>getDepts(i).includes(role));
+  if (filter==="미지정") arr = arr.filter((i)=>i.status==="unassigned");
+  if (filter==="취합 대기") arr = arr.filter((i)=>i.submit==="collect" && i.status==="replied");
+  const q = query.trim().toLowerCase();
+  if (q) arr = arr.filter((i)=>[i.title,i.source,...getDepts(i),getDocId(i)].some((v)=>(v||"").toLowerCase().includes(q)));
+  return arr;
+}
+
+function render(){
+  const all = Object.values(items);
+  const counts = {
+    total: all.filter((i)=>i.status!=="done").length,
+    unassigned: all.filter((i)=>i.status==="unassigned").length,
+    urgent: all.filter((i)=>i.status!=="done" && dday(i.due)<=3).length,
+    objections: all.filter((i)=>commentsArr(i).some((c)=>c.objection) && i.status!=="done").length,
+  };
+  document.getElementById("stats").innerHTML = [
+    ["진행중",counts.total,"var(--ink)"],
+    ["미지정",counts.unassigned,counts.unassigned?"var(--blue)":"var(--faint)"],
+    ["마감 임박",counts.urgent,counts.urgent?"var(--red)":"var(--faint)"],
+    ["이의제기",counts.objections,counts.objections?"var(--orange)":"var(--faint)"],
+  ].map(([lb,n,c])=>`<div class="card stat"><div class="lb">${lb}</div><div class="n" style="color:${c}">${n}</div></div>`).join("");
+
+  document.getElementById("adminBadge").style.display = isAdmin() ? "" : "none";
+
+  const filters = ["전체","내 부서","미지정",...(isAdmin()?["취합 대기"]:[])];
+  document.getElementById("toolbar").innerHTML =
+    filters.map((f)=>`<button class="pill${filter===f?" on":""}" onclick="App.setFilter('${f}')">${f}</button>`).join("") +
+    `<input class="search" placeholder="건명, 문서ID, 부서 검색" value="${esc(query)}" oninput="App.setQuery(this.value)">` +
+    (isAdmin() ? `<button class="btn-primary" style="margin-left:auto;padding:9px 16px" onclick="App.openAdd()">메일 붙여넣기 등록</button>` : "");
+
+  const arr = list();
+  document.getElementById("listBody").innerHTML = arr.length ? arr.map((i)=>{
+    const mine = getDepts(i).includes(role);
+    const hasObj = commentsArr(i).some((c)=>c.objection);
+    return `<tr class="row${openId===i.id?" sel":""}${i.status==="done"?" done":""}" onclick="App.open(${i.id})">
+      <td>
+        <div class="t-title${mine?" mine":""}">${esc(i.title)}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}</div>
+        <div class="t-meta">${getDocId(i)?`<b>${esc(getDocId(i))}</b>, `:""}${esc(i.source)}, 접수 ${md(i.received)}</div>
+      </td>
+      <td>${getDepts(i).length ? `${getDepts(i).map((d)=>deptBadge(d, d===role)).join("")}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
+      <td style="white-space:nowrap">${ddayHtml(i.due, i.status)}</td>
+      <td>${chip(i.status)}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty">${
+    all.length===0 ? '등록된 건이 없습니다. "메일 붙여넣기 등록"으로 첫 건을 등록해 보세요.'
+    : query.trim() ? "검색 결과가 없습니다." : "해당하는 건이 없습니다. 필터를 바꿔 보세요."}</td></tr>`;
+
+  renderDetail();
+}
+
+function renderDetail(){
+  const el = document.getElementById("detail");
+  const i = items[openId];
+  if (!i){ el.innerHTML = `<p style="color:var(--sub);font-size:13.5px;margin:0;padding:20px 0;text-align:center">목록에서 건을 선택하면<br>상세 내용이 표시됩니다.</p>`; return; }
+  const admin = isAdmin();
+  const canTouch = getDepts(i).includes(role) || admin;
+  const flow = (i.submit==="collect" ? ["assigned","working","replied","done"] : ["assigned","working","done"])
+    .filter((s)=> admin || i.submit!=="collect" || s!=="done");
+  const cms = commentsArr(i);
+
+  el.innerHTML = `
+    <div class="d-src">${esc(i.source)}</div>
+    <h2 class="d-title">${esc(i.title)}</h2>
+    <div class="d-link">${esc(i.link)} (그룹웨어 메일에서 원문 확인)</div>
+    <div class="d-grid">
+      <span class="lb">마감</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${ddayHtml(i.due, i.status)}${admin?`<input type="date" class="date-in" value="${esc(i.due)}" onchange="App.setDue(${i.id}, this.value)">`:""}</div>
+      <span class="lb">접수일</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>${md(i.received)}</span>${admin?`<input type="date" class="date-in" value="${esc(i.received)}" onchange="App.setReceived(${i.id}, this.value)">`:""}</div>
+      <span class="lb" style="align-self:start;margin-top:5px">담당 부서</span>
+      <div>${admin
+        ? `<div class="dept-pick">${deptPickHtml(getDepts(i), (d)=>`App.toggleDept(${i.id},'${d}')`)}</div>`
+        : (getDepts(i).length ? getDepts(i).map((d)=>deptBadge(d, d===role)).join("") : `<span style="font-weight:700">미지정</span>`)}</div>
+      <span class="lb">제출 방식</span>
+      <div>${admin
+        ? `<select class="sel-soft" onchange="App.setSubmit(${i.id}, this.value)"><option value="direct" ${i.submit!=="collect"?"selected":""}>부서 직접 제출</option><option value="collect" ${i.submit==="collect"?"selected":""}>예산기획팀 취합 제출</option></select>`
+        : `<span style="font-weight:600">${SUBMIT[i.submit||"direct"]}</span>`}</div>
+      <span class="lb" style="align-self:start;margin-top:6px">상태</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${canTouch && i.status!=="unassigned"
+          ? flow.map((s)=>`<button class="st-btn" style="${i.status===s?`background:${STATUS[s].bg};color:${STATUS[s].fg};box-shadow:none`:""}" onclick="App.setStatus(${i.id},'${s}')">${STATUS[s].label}</button>`).join("")
+          : chip(i.status)}
+      </div>
+      ${i.submit==="collect" && i.status!=="done" ? `<span></span><span class="d-note">담당 부서는 예산기획팀에 회신 후 "회신완료"까지 처리하고, 업무연락방 제출과 "제출완료" 처리는 예산기획팀이 합니다.</span>` : ""}
+    </div>
+
+    <div class="cm-head">코멘트 ${cms.length ? `<span style="color:var(--sub);font-weight:500">${cms.length}</span>` : ""}</div>
+    ${cms.length===0 ? `<p class="cm-empty">아직 코멘트가 없습니다. 소관이 아니라고 판단되면 이의제기로 남겨 주세요.</p>` : ""}
+    ${cms.map((c)=>`
+      <div class="cm${c.objection?" obj":""}">
+        <div class="cm-meta"><strong>${esc(c.dept)}</strong>${c.objection?`<span class="cm-obj-tag">소관 이의제기</span>`:""}<span class="cm-time">${esc(c.time)}</span></div>
+        <div class="cm-body">${esc(c.text)}</div>
+      </div>`).join("")}
+    <textarea id="cmDraft" class="cm-input" rows="2" placeholder="${role ? esc(role)+" 이름으로 코멘트를 남깁니다" : "상단에서 부서를 먼저 선택하세요"}"></textarea>
+    <div class="cm-foot">
+      <label class="obj-label"><input type="checkbox" id="cmObj"> 소관 이의제기</label>
+      <button class="btn-primary" style="margin-left:auto;padding:9px 16px" onclick="App.addComment(${i.id})">남기기</button>
+    </div>
+    ${admin ? `<div class="d-sep"><button class="del-btn" onclick="App.remove(${i.id})">이 건 삭제 (잘못 등록한 경우)</button></div>` : ""}
+  `;
+}
+
+/* ── 동작 ── */
+const App = {
+  changeRole(d){
+    if (d === ADMIN && !adminOk){
+      const code = prompt("예산기획팀은 배분 권한이 있어 관리 코드가 필요합니다.\n관리 코드를 입력하세요:");
+      if (code !== ADMIN_CODE){
+        if (code !== null) alert("코드가 일치하지 않습니다.");
+        document.getElementById("roleSel").value = role || "";
+        return;
+      }
+      adminOk = true;
+      localStorage.setItem("nrcBoard-adminok", "1");
+    }
+    role = d; filter = "전체"; localStorage.setItem("nrcBoard-dept", d); render();
+  },
+  setFilter(f){ filter = f; render(); },
+  setQuery(v){
+    query = v;
+    // 입력창 포커스 유지를 위해 목록만 갱신
+    const arr = list();
+    const all = Object.values(items);
+    document.getElementById("listBody").innerHTML = arr.length ? arr.map((i)=>{
+      const mine = getDepts(i).includes(role);
+      const hasObj = commentsArr(i).some((c)=>c.objection);
+      return `<tr class="row${openId===i.id?" sel":""}${i.status==="done"?" done":""}" onclick="App.open(${i.id})">
+        <td><div class="t-title${mine?" mine":""}">${esc(i.title)}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}</div>
+        <div class="t-meta">${getDocId(i)?`<b>${esc(getDocId(i))}</b>, `:""}${esc(i.source)}, 접수 ${md(i.received)}</div></td>
+        <td>${getDepts(i).length ? `${getDepts(i).map((d)=>deptBadge(d, d===role)).join("")}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
+        <td style="white-space:nowrap">${ddayHtml(i.due, i.status)}</td>
+        <td>${chip(i.status)}</td></tr>`;
+    }).join("") : `<tr><td colspan="4" class="empty">${all.length===0 ? "등록된 건이 없습니다." : query.trim() ? "검색 결과가 없습니다." : "해당하는 건이 없습니다."}</td></tr>`;
+  },
+  open(id){ openId = id; render(); },
+  toggleDept(id, d){
+    const i = items[id]; if (!i) return;
+    const ds = getDepts(i);
+    const nds = ds.includes(d) ? ds.filter((x)=>x!==d) : [...ds, d];
+    const patch = { depts: nds, dept: null };
+    if (!nds.length) patch.status = "unassigned";
+    else if (i.status === "unassigned") patch.status = "assigned";
+    ref.child(id).update(patch).catch(showErr);
+  },
+  setSubmit(id, v){ ref.child(id).update({ submit: v }).catch(showErr); },
+  setDue(id, v){ if (v) ref.child(id).update({ due: v }).catch(showErr); },
+  setReceived(id, v){ if (v) ref.child(id).update({ received: v }).catch(showErr); },
+  setStatus(id, s){ ref.child(id).update({ status: s }).catch(showErr); },
+  addComment(id){
+    if (!role){ alert("상단에서 부서를 먼저 선택해 주세요."); return; }
+    const t = document.getElementById("cmDraft").value.trim();
+    if (!t) return;
+    const objection = document.getElementById("cmObj").checked;
+    ref.child(id).child("comments").push({ dept: role, text: t, time: nowStamp(), objection }).catch(showErr);
+  },
+  remove(id){
+    if (!confirm("이 건을 삭제할까요? 모든 사용자 화면에서 사라집니다.")) return;
+    ref.child(id).remove().catch(showErr);
+    openId = null;
+  },
+
+  openAdd(){ document.getElementById("addOverlay").classList.add("show"); },
+  closeAdd(e){ if (!e || e.target.id === "addOverlay"){ document.getElementById("addOverlay").classList.remove("show"); this.resetAdd(); } },
+  resetAdd(){ parsed = null; document.getElementById("pasteText").value = ""; document.getElementById("parseResult").innerHTML = ""; document.getElementById("parseHint").textContent = ""; },
+  analyze(){
+    const text = document.getElementById("pasteText").value;
+    parsed = parseMail(text);
+    const box = document.getElementById("parseResult");
+    if (!parsed){
+      box.innerHTML = `<p class="parse-err">메일 양식을 인식하지 못했습니다. 본문에 "- 문서ID :" 형태의 항목이 포함되어 있는지 확인해 주세요.</p>`;
+      return;
+    }
+    const p = parsed;
+    const urgent = p.due && dday(p.due) <= 3;
+    box.innerHTML = `
+      <div class="preview">
+        <div class="p-grid">
+          <span class="lb">건명</span><strong style="line-height:1.45">${esc(p.title) || "(인식 실패, 등록 후 코멘트로 보완)"}</strong>
+          <span class="lb">문서ID</span><span>${esc(p.docId) || "—"}</span>
+          <span class="lb">요청기관</span><span>${esc(p.source) || "—"}</span>
+          <span class="lb">업무구분</span><span>${esc(p.category) || "—"}</span>
+          <span class="lb">접수 / 마감</span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <input type="date" id="addReceived" class="date-in" value="${esc(p.received || todayISO())}">
+            <span style="color:var(--faint)">→</span>
+            <input type="date" id="addDue" class="date-in" style="${urgent?"color:var(--red);font-weight:700":""}" value="${esc(p.due || todayISO())}">
+          </div>
+          <span class="lb" style="align-self:start;margin-top:5px">담당 부서</span>
+          <div>
+            <div class="dept-pick" id="addDeptPick"></div>
+            <div style="margin-top:8px;font-size:11.5px;color:var(--faint)">${p.suggested ? `<span class="tag-auto">자동 추천: ${p.suggested}</span> ` : ""}클릭으로 선택, 여러 부서 지정 가능</div>
+          </div>
+          <span class="lb">제출 방식</span>
+          <select id="addSubmit" class="sel-soft" style="justify-self:start">
+            <option value="direct">부서 직접 제출</option>
+            <option value="collect">예산기획팀 취합 제출</option>
+          </select>
+        </div>
+        <button class="btn-primary btn-register" onclick="App.register()">이대로 등록</button>
+      </div>`;
+    addDepts = new Set(p.suggested ? [p.suggested] : []);
+    this.renderAddPick();
+  },
+  renderAddPick(){
+    const el = document.getElementById("addDeptPick");
+    if (el) el.innerHTML = deptPickHtml([...addDepts], (d)=>`App.toggleAddDept('${d}')`);
+  },
+  toggleAddDept(d){
+    if (addDepts.has(d)) addDepts.delete(d); else addDepts.add(d);
+    this.renderAddPick();
+  },
+  register(){
+    if (!parsed) return;
+    const p = parsed;
+    const depts = [...addDepts];
+    const submit = document.getElementById("addSubmit").value;
+    const id = Date.now();
+    ref.child(id).set({
+      id,
+      title: p.title || "(제목 인식 실패, 코멘트로 보완)",
+      source: p.source ? `경제인문사회연구회 (${p.source} 요청)` : "경제인문사회연구회",
+      received: document.getElementById("addReceived").value || p.received || todayISO(),
+      due: document.getElementById("addDue").value || p.due || todayISO(),
+      depts,
+      dept: null,
+      status: depts.length ? "assigned" : "unassigned",
+      submit,
+      docId: p.docId || "",
+      link: p.docId ? `업무연락방 문서 ${p.docId}` : "업무연락방 링크",
+    }).catch(showErr);
+    openId = id;
+    this.closeAdd();
+  },
+
+  exportCSV(){
+    const q = (v) => `"${String(v ?? "").replace(/"/g,'""')}"`;
+    const header = ["접수번호(문서ID)","건명","출처","접수일","마감일","담당부서","제출방식","상태","코멘트"];
+    const rows = Object.values(items).sort((a,b)=>a.id-b.id).map((i)=>[
+      getDocId(i), i.title, i.source, i.received, i.due, getDepts(i).join(" / ") || "미지정",
+      SUBMIT[i.submit||"direct"], (STATUS[i.status]||STATUS.unassigned).label,
+      commentsArr(i).map((c)=>`[${c.dept}${c.objection?"/이의제기":""} ${c.time}] ${c.text}`).join(" / "),
+    ].map(q).join(","));
+    const csv = "\uFEFF" + header.map(q).join(",") + "\n" + rows.join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const d = new Date(), z = (x)=>String(x).padStart(2,"0");
+    a.href = url;
+    a.download = `업무연락_배분대장_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  },
+};
+
+init();
+</script>
+</body>
+</html>
