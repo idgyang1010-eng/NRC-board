@@ -85,7 +85,10 @@ tr.row.done{opacity:.5}
 .t-meta b{font-weight:700;color:var(--body)}
 .obj-flag{color:var(--orange);font-size:11px;margin-left:8px;font-weight:700;background:#FFF0D6;padding:2px 7px;border-radius:99px}
 .dept-name{font-weight:500;color:var(--body);font-size:13px;white-space:nowrap}
-.dept-badge{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block}
+.dept-badge{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block;margin:2px 4px 2px 0}
+.dept-pick{display:flex;flex-wrap:wrap;gap:6px}
+.dp{padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:600;background:#fff;box-shadow:inset 0 0 0 1px var(--line);color:var(--sub);cursor:pointer;transition:all .12s;user-select:none}
+.dp.on{box-shadow:none;font-weight:700}
 .dept-badge.mine{box-shadow:0 0 0 1.5px currentColor}
 .dept-name.mine{font-weight:700;color:var(--blue)}
 .tag-collect{margin-left:6px;font-size:11px;color:var(--sub);background:var(--field);border-radius:999px;padding:3px 9px;font-weight:600;white-space:nowrap}
@@ -255,6 +258,15 @@ const dday = (d) => { const t=new Date(); t.setHours(0,0,0,0); const x=new Date(
 const md = (d) => (d||"").slice(5).replace("-","/");
 const nowStamp = () => { const n=new Date(), p=(x)=>String(x).padStart(2,"0"); return `${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`; };
 const getDocId = (i) => i.docId || ((i.link||"").match(/\d{2}-\d{5}/)||[])[0] || "";
+// 담당 부서 목록 (구버전 데이터의 단일 dept도 배열로 취급)
+const getDepts = (i) => Array.isArray(i.depts) ? i.depts : (i.dept ? [i.dept] : []);
+function deptPickHtml(selected, click){
+  return DEPTS.map((d)=>{
+    const on = selected.includes(d);
+    const c = DEPT_COLORS[d];
+    return `<span class="dp${on?" on":""}" style="${on?`background:${c[0]};color:${c[1]}`:""}" onclick="${click(d)}">${d}</span>`;
+  }).join("");
+}
 const commentsArr = (i) => i.comments ? Object.values(i.comments) : [];
 
 function parseMail(text){
@@ -282,6 +294,7 @@ let openId = null;
 let filter = "전체";
 let query = "";
 let parsed = null;
+let addDepts = new Set();
 let ref = null;
 function showErr(e){
   const msg = String(e && e.message || e);
@@ -329,11 +342,11 @@ function ddayHtml(due, status){
 
 function list(){
   let arr = Object.values(items).sort((a,b)=>(a.status==="done")-(b.status==="done") || new Date(a.due)-new Date(b.due));
-  if (filter==="내 부서") arr = arr.filter((i)=>i.dept===role);
+  if (filter==="내 부서") arr = arr.filter((i)=>getDepts(i).includes(role));
   if (filter==="미지정") arr = arr.filter((i)=>i.status==="unassigned");
   if (filter==="취합 대기") arr = arr.filter((i)=>i.submit==="collect" && i.status==="replied");
   const q = query.trim().toLowerCase();
-  if (q) arr = arr.filter((i)=>[i.title,i.source,i.dept,getDocId(i)].some((v)=>(v||"").toLowerCase().includes(q)));
+  if (q) arr = arr.filter((i)=>[i.title,i.source,...getDepts(i),getDocId(i)].some((v)=>(v||"").toLowerCase().includes(q)));
   return arr;
 }
 
@@ -362,14 +375,14 @@ function render(){
 
   const arr = list();
   document.getElementById("listBody").innerHTML = arr.length ? arr.map((i)=>{
-    const mine = i.dept===role;
+    const mine = getDepts(i).includes(role);
     const hasObj = commentsArr(i).some((c)=>c.objection);
     return `<tr class="row${openId===i.id?" sel":""}${i.status==="done"?" done":""}" onclick="App.open(${i.id})">
       <td>
         <div class="t-title${mine?" mine":""}">${esc(i.title)}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}</div>
         <div class="t-meta">${getDocId(i)?`<b>${esc(getDocId(i))}</b>, `:""}${esc(i.source)}, 접수 ${md(i.received)}</div>
       </td>
-      <td>${i.dept ? `${deptBadge(i.dept, mine)}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
+      <td>${getDepts(i).length ? `${getDepts(i).map((d)=>deptBadge(d, d===role)).join("")}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
       <td style="white-space:nowrap">${ddayHtml(i.due, i.status)}</td>
       <td>${chip(i.status)}</td>
     </tr>`;
@@ -385,7 +398,7 @@ function renderDetail(){
   const i = items[openId];
   if (!i){ el.innerHTML = `<p style="color:var(--sub);font-size:13.5px;margin:0;padding:20px 0;text-align:center">목록에서 건을 선택하면<br>상세 내용이 표시됩니다.</p>`; return; }
   const admin = isAdmin();
-  const canTouch = i.dept===role || admin;
+  const canTouch = getDepts(i).includes(role) || admin;
   const flow = (i.submit==="collect" ? ["assigned","working","replied","done"] : ["assigned","working","done"])
     .filter((s)=> admin || i.submit!=="collect" || s!=="done");
   const cms = commentsArr(i);
@@ -396,10 +409,10 @@ function renderDetail(){
     <div class="d-link">${esc(i.link)} (그룹웨어 메일에서 원문 확인)</div>
     <div class="d-grid">
       <span class="lb">마감</span><div>${ddayHtml(i.due, i.status)}</div>
-      <span class="lb">담당 부서</span>
+      <span class="lb" style="align-self:start;margin-top:5px">담당 부서</span>
       <div>${admin
-        ? `<select class="sel-soft" onchange="App.assign(${i.id}, this.value)"><option value="">미지정</option>${DEPTS.map((d)=>`<option ${i.dept===d?"selected":""}>${d}</option>`).join("")}</select>`
-        : (i.dept ? deptBadge(i.dept, i.dept===role) : `<span style="font-weight:700">미지정</span>`)}</div>
+        ? `<div class="dept-pick">${deptPickHtml(getDepts(i), (d)=>`App.toggleDept(${i.id},'${d}')`)}</div>`
+        : (getDepts(i).length ? getDepts(i).map((d)=>deptBadge(d, d===role)).join("") : `<span style="font-weight:700">미지정</span>`)}</div>
       <span class="lb">제출 방식</span>
       <div>${admin
         ? `<select class="sel-soft" onchange="App.setSubmit(${i.id}, this.value)"><option value="direct" ${i.submit!=="collect"?"selected":""}>부서 직접 제출</option><option value="collect" ${i.submit==="collect"?"selected":""}>예산기획팀 취합 제출</option></select>`
@@ -439,18 +452,26 @@ const App = {
     const arr = list();
     const all = Object.values(items);
     document.getElementById("listBody").innerHTML = arr.length ? arr.map((i)=>{
-      const mine = i.dept===role;
+      const mine = getDepts(i).includes(role);
       const hasObj = commentsArr(i).some((c)=>c.objection);
       return `<tr class="row${openId===i.id?" sel":""}${i.status==="done"?" done":""}" onclick="App.open(${i.id})">
         <td><div class="t-title${mine?" mine":""}">${esc(i.title)}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}</div>
         <div class="t-meta">${getDocId(i)?`<b>${esc(getDocId(i))}</b>, `:""}${esc(i.source)}, 접수 ${md(i.received)}</div></td>
-        <td>${i.dept ? `${deptBadge(i.dept, mine)}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
+        <td>${getDepts(i).length ? `${getDepts(i).map((d)=>deptBadge(d, d===role)).join("")}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
         <td style="white-space:nowrap">${ddayHtml(i.due, i.status)}</td>
         <td>${chip(i.status)}</td></tr>`;
     }).join("") : `<tr><td colspan="4" class="empty">${all.length===0 ? "등록된 건이 없습니다." : query.trim() ? "검색 결과가 없습니다." : "해당하는 건이 없습니다."}</td></tr>`;
   },
   open(id){ openId = id; render(); },
-  assign(id, dept){ ref.child(id).update({ dept: dept || null, status: dept ? "assigned" : "unassigned" }).catch(showErr); },
+  toggleDept(id, d){
+    const i = items[id]; if (!i) return;
+    const ds = getDepts(i);
+    const nds = ds.includes(d) ? ds.filter((x)=>x!==d) : [...ds, d];
+    const patch = { depts: nds, dept: null };
+    if (!nds.length) patch.status = "unassigned";
+    else if (i.status === "unassigned") patch.status = "assigned";
+    ref.child(id).update(patch).catch(showErr);
+  },
   setSubmit(id, v){ ref.child(id).update({ submit: v }).catch(showErr); },
   setStatus(id, s){ ref.child(id).update({ status: s }).catch(showErr); },
   addComment(id){
@@ -486,13 +507,10 @@ const App = {
           <span class="lb">요청기관</span><span>${esc(p.source) || "—"}</span>
           <span class="lb">업무구분</span><span>${esc(p.category) || "—"}</span>
           <span class="lb">요청일 / 마감</span><span>${esc(p.received) || "—"} → <strong style="color:${urgent?"var(--red)":"var(--ink)"}">${esc(p.due) || "—"}</strong></span>
-          <span class="lb">담당 부서</span>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <select id="addDept" class="sel-soft">
-              <option value="">미지정으로 등록</option>
-              ${DEPTS.map((d)=>`<option ${p.suggested===d?"selected":""}>${d}</option>`).join("")}
-            </select>
-            ${p.suggested ? `<span class="tag-auto">자동 추천</span>` : ""}
+          <span class="lb" style="align-self:start;margin-top:5px">담당 부서</span>
+          <div>
+            <div class="dept-pick" id="addDeptPick"></div>
+            <div style="margin-top:8px;font-size:11.5px;color:var(--faint)">${p.suggested ? `<span class="tag-auto">자동 추천: ${p.suggested}</span> ` : ""}클릭으로 선택, 여러 부서 지정 가능</div>
           </div>
           <span class="lb">제출 방식</span>
           <select id="addSubmit" class="sel-soft" style="justify-self:start">
@@ -502,11 +520,21 @@ const App = {
         </div>
         <button class="btn-primary btn-register" onclick="App.register()">이대로 등록</button>
       </div>`;
+    addDepts = new Set(p.suggested ? [p.suggested] : []);
+    this.renderAddPick();
+  },
+  renderAddPick(){
+    const el = document.getElementById("addDeptPick");
+    if (el) el.innerHTML = deptPickHtml([...addDepts], (d)=>`App.toggleAddDept('${d}')`);
+  },
+  toggleAddDept(d){
+    if (addDepts.has(d)) addDepts.delete(d); else addDepts.add(d);
+    this.renderAddPick();
   },
   register(){
     if (!parsed) return;
     const p = parsed;
-    const dept = document.getElementById("addDept").value;
+    const depts = [...addDepts];
     const submit = document.getElementById("addSubmit").value;
     const id = Date.now();
     ref.child(id).set({
@@ -515,8 +543,9 @@ const App = {
       source: p.source ? `경제인문사회연구회 (${p.source} 요청)` : "경제인문사회연구회",
       received: p.received || todayISO(),
       due: p.due || todayISO(),
-      dept: dept || null,
-      status: dept ? "assigned" : "unassigned",
+      depts,
+      dept: null,
+      status: depts.length ? "assigned" : "unassigned",
       submit,
       docId: p.docId || "",
       link: p.docId ? `업무연락방 문서 ${p.docId}` : "업무연락방 링크",
@@ -529,7 +558,7 @@ const App = {
     const q = (v) => `"${String(v ?? "").replace(/"/g,'""')}"`;
     const header = ["접수번호(문서ID)","건명","출처","접수일","마감일","담당부서","제출방식","상태","코멘트"];
     const rows = Object.values(items).sort((a,b)=>a.id-b.id).map((i)=>[
-      getDocId(i), i.title, i.source, i.received, i.due, i.dept || "미지정",
+      getDocId(i), i.title, i.source, i.received, i.due, getDepts(i).join(" / ") || "미지정",
       SUBMIT[i.submit||"direct"], (STATUS[i.status]||STATUS.unassigned).label,
       commentsArr(i).map((c)=>`[${c.dept}${c.objection?"/이의제기":""} ${c.time}] ${c.text}`).join(" / "),
     ].map(q).join(","));
