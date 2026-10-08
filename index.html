@@ -65,7 +65,8 @@ main.card{flex:1 1 55%;min-width:320px;overflow:hidden}
 aside.card{flex:1 1 320px;max-width:420px;padding:24px 26px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto}
 
 .toolbar{display:flex;gap:7px;padding:20px 22px 14px;align-items:center;flex-wrap:wrap}
-.pill{background:var(--field);color:var(--body);border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600}
+.pill{background:#E9EDF2;color:#333D4B;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;box-shadow:inset 0 0 0 1px #DCE1E8}
+.pill:hover{background:#DFE5EC;opacity:1}
 .pill.on{background:var(--blue);color:#fff;box-shadow:0 4px 12px -4px rgba(27,100,218,.5)}
 .search{background:var(--field);border-radius:999px;padding:9px 16px;font-size:13px;flex:1 1 150px;max-width:230px;min-width:130px}
 .btn-primary{background:var(--blue);color:#fff;border-radius:13px;padding:11px 18px;font-size:13.5px;font-weight:700;box-shadow:0 6px 16px -6px rgba(27,100,218,.55)}
@@ -543,7 +544,7 @@ function renderDetail(){
 
       <span class="lb">분류</span>
       <div>${admin
-        ? `<button class="st-btn" style="${i.gukgam?"background:#191F28;color:#fff;box-shadow:none":""}" onclick="App.toggleGukgam(${i.id})">국정감사</button>`
+        ? `<button class="st-btn" style="${i.gukgam?"background:#191F28;color:#fff;box-shadow:none":""}" onclick="App.toggleGukgam(${i.id})">${new Date().getFullYear()}년도 국정감사</button>`
         : (i.gukgam ? `<span class="gk-tag">국감</span>` : `<span style="color:var(--faint)">일반</span>`)}</div>
 
       <span class="lb" style="align-self:start;margin-top:4px">추가 안내</span>
@@ -719,7 +720,7 @@ const App = {
           </select>
           <span class="lb">분류</span>
           <label style="justify-self:start;display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600">
-            <input type="checkbox" id="addGukgam" ${/국정감사|국감/.test((p.title||"") + (p.category||"")) ? "checked" : ""}> 국정감사 자료
+            <input type="checkbox" id="addGukgam" ${/국정감사|국감/.test((p.title||"") + (p.category||"")) ? "checked" : ""}> ${new Date().getFullYear()}년도 국정감사 자료
           </label>
         </div>
         <button class="btn-primary btn-register" onclick="App.register()">이대로 등록</button>
@@ -847,7 +848,7 @@ const App = {
     const a = document.createElement("a");
     const d = new Date(), z = (x)=>String(x).padStart(2,"0");
     a.href = url;
-    a.download = `국정감사_요구자료_리스트_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}.csv`;
+    a.download = `${d.getFullYear()}년도_국정감사_요구자료_리스트_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   },
