@@ -84,6 +84,8 @@ td.cell-title{max-width:1px;width:56%}
 .t-title.mine{font-weight:700}
 .t-meta{color:var(--sub);font-size:12.5px;margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .doc-tag{font-weight:700;background:#EAEEF3;color:var(--ink);border-radius:6px;padding:2px 7px;font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ch-tag{font-weight:600;color:#1B64DA;background:#EAF2FF;border-radius:999px;padding:2px 8px;font-size:11px;white-space:nowrap}
+.gk-tag{font-weight:700;color:#fff;background:#191F28;border-radius:6px;padding:2px 8px;font-size:11px;white-space:nowrap;letter-spacing:.3px}
 .t-meta b{font-weight:700;color:var(--body)}
 .obj-flag{color:var(--orange);font-size:11px;margin-left:8px;font-weight:700;background:#FFF0D6;padding:2px 7px;border-radius:99px}
 .dept-name{font-weight:500;color:var(--body);font-size:13px;white-space:nowrap}
@@ -156,6 +158,7 @@ footer{padding:8px 0 32px;font-size:12px;color:var(--faint);line-height:1.7}
       <span class="live">실시간 동기화</span>
       <button class="btn-white" onclick="App.exportCSV()" title="전체 건을 CSV 파일로 내려받기">엑셀 내보내기</button>
       <button id="briefBtn" class="btn-white" style="display:none" onclick="App.copyBrief()" title="오늘 현황 요약을 복사해 메일이나 그룹웨어에 붙여넣기">브리핑 복사</button>
+      <button id="gukgamBtn" class="btn-white" style="display:none" onclick="App.exportGukgam()" title="현재 화면 목록을 국감 리스트 양식 열 순서로 내보내기">국감 리스트</button>
       <button id="backupBtn" class="btn-white" style="display:none" onclick="App.backupJSON()" title="전체 데이터를 JSON 파일로 백업 (복원 가능한 원본 형식)">백업</button>
       <select id="roleSel" class="sel-white" onchange="App.changeRole(this.value)"></select>
       <span id="adminBadge" class="badge-admin" style="display:none">배분 권한</span>
@@ -298,6 +301,21 @@ function deptPickHtml(selected, click){
 }
 const commentsArr = (i) => i.comments ? Object.values(i.comments) : [];
 
+// 예산기획팀 코멘트에서 "9.10.까지 회신" 같은 날짜를 추출해 제출일자로 사용
+function submitDate(i){
+  let found = "";
+  const z = (x)=>String(x).padStart(2,"0");
+  const yr = new Date().getFullYear();
+  commentsArr(i).forEach((c)=>{
+    if (c.dept !== ADMIN || !/까지/.test(c.text)) return;
+    let m = c.text.match(/(\d{4})\s*[-.년]\s*(\d{1,2})\s*[-.월]\s*(\d{1,2})/);
+    if (m){ found = `${m[1]}-${z(m[2])}-${z(m[3])}`; return; }
+    m = c.text.match(/(\d{1,2})\s*[.\/월]\s*(\d{1,2})\s*[.일]?\s*까지/);
+    if (m){ found = `${yr}-${z(m[1])}-${z(m[2])}`; }
+  });
+  return found;
+}
+
 // 건별 안내문 텍스트 (복사 버튼과 자동 메일이 공용)
 function kdate(d){
   const x = new Date(d);
@@ -425,6 +443,7 @@ function list(){
   let arr = Object.values(items).sort((a,b)=>(a.status==="done")-(b.status==="done") || new Date(a.due)-new Date(b.due));
   if (filter==="내 부서") arr = arr.filter((i)=>getDepts(i).includes(role));
   if (filter==="미지정") arr = arr.filter((i)=>i.status==="unassigned");
+  if (filter==="국감") arr = arr.filter((i)=>i.gukgam);
   if (filter==="취합 대기") arr = arr.filter((i)=>i.submit==="collect" && i.status==="replied");
   if (filter==="미확인") arr = arr.filter((i)=>i.status!=="done" && getDepts(i).length && getDepts(i).some((d)=>!(i.acks&&i.acks[d])));
   const q = query.trim().toLowerCase();
@@ -450,10 +469,12 @@ function render(){
   document.getElementById("adminBadge").style.display = isAdmin() ? "" : "none";
   const bk = document.getElementById("backupBtn");
   if (bk) bk.style.display = isAdmin() ? "" : "none";
+  const gk = document.getElementById("gukgamBtn");
+  if (gk) gk.style.display = isAdmin() ? "" : "none";
   const bf = document.getElementById("briefBtn");
   if (bf) bf.style.display = isAdmin() ? "" : "none";
 
-  const filters = ["전체","내 부서","미지정",...(isAdmin()?["취합 대기","미확인"]:[])];
+  const filters = ["전체","내 부서","미지정","국감",...(isAdmin()?["취합 대기","미확인"]:[])];
   document.getElementById("toolbar").innerHTML =
     filters.map((f)=>`<button class="pill${filter===f?" on":""}" onclick="App.setFilter('${f}')">${f}</button>`).join("") +
     `<input class="search" placeholder="건명, 문서ID, 부서 검색" value="${esc(query)}" oninput="App.setQuery(this.value)">` +
@@ -466,7 +487,7 @@ function render(){
     return `<tr class="row${openId===i.id?" sel":""}${i.status==="done"?" done":""}" onclick="App.open(${i.id})">
       <td class="cell-title">
         <div class="t-title${mine?" mine":""}" title="${esc(i.title)}">${esc(i.title)}</div>
-        <div class="t-meta">${getDocId(i)?`<span class="doc-tag">${esc(getDocId(i))}</span>`:""}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}<span>${esc(i.source)}, 접수 ${md(i.received)}</span></div>
+        <div class="t-meta">${i.gukgam?`<span class="gk-tag">국감</span>`:""}${getDocId(i)?`<span class="doc-tag">${esc(getDocId(i))}</span>`:""}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}${i.notified&&i.notified.mail?`<span class="ch-tag">메일 안내</span>`:""}${i.notified&&i.notified.msg?`<span class="ch-tag">메신저 안내</span>`:""}<span>${esc(i.source)}, 접수 ${md(i.received)}</span></div>
       </td>
       <td>${getDepts(i).length ? `${getDepts(i).map((d)=>deptBadge(d, d===role, !!(i.acks&&i.acks[d]))).join("")}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
       <td style="white-space:nowrap">${i.kind==="notice" ? `<span class="tag-collect">공지</span>` : ddayHtml(i.due, i.status)}</td>
@@ -519,6 +540,33 @@ function renderDetail(){
       <div>${admin
         ? `<select class="sel-soft" onchange="App.setSubmit(${i.id}, this.value)"><option value="direct" ${i.submit!=="collect"?"selected":""}>부서 직접 제출</option><option value="collect" ${i.submit==="collect"?"selected":""}>예산기획팀 취합 제출</option></select>`
         : `<span style="font-weight:600">${SUBMIT[i.submit||"direct"]}</span>`}</div>`}
+
+      <span class="lb">분류</span>
+      <div>${admin
+        ? `<button class="st-btn" style="${i.gukgam?"background:#191F28;color:#fff;box-shadow:none":""}" onclick="App.toggleGukgam(${i.id})">국정감사</button>`
+        : (i.gukgam ? `<span class="gk-tag">국감</span>` : `<span style="color:var(--faint)">일반</span>`)}</div>
+
+      <span class="lb" style="align-self:start;margin-top:4px">추가 안내</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${admin
+          ? ["mail","msg"].map((ch)=>{
+              const on = i.notified && i.notified[ch];
+              const nm = ch === "mail" ? "메일" : "메신저";
+              return `<button class="st-btn" style="${on?"background:#DCEBFF;color:#1B64DA;box-shadow:none":""}" onclick="App.toggleNotify(${i.id},'${ch}')" title="${on?`${nm} 안내 표시 해제`:`${nm}로 안내했음을 표시`}">${nm}${on?` ${esc(on)}`:""}</button>`;
+            }).join("")
+          : (i.notified && (i.notified.mail || i.notified.msg)
+              ? [i.notified.mail?`메일 ${esc(i.notified.mail)}`:"", i.notified.msg?`메신저 ${esc(i.notified.msg)}`:""].filter(Boolean).map((t)=>`<span style="font-size:12.5px;color:var(--body)">${t}</span>`).join('<span style="color:var(--faint)">,</span> ')
+              : `<span style="color:var(--faint);font-size:12.5px">게시판에만 안내된 건입니다</span>`)}
+      </div>
+
+      <span class="lb" style="align-self:start;margin-top:6px">제출 폴더</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${admin
+          ? `<input class="date-in" style="flex:1 1 150px;min-width:0" placeholder="공유폴더 경로 붙여넣기 (Z:\\...)" value="${esc(i.folder||"")}" onchange="App.setFolder(${i.id}, this.value)">`
+          : (i.folder ? `<span style="font-size:12px;word-break:break-all;color:var(--body)">${esc(i.folder)}</span>` : `<span style="color:var(--faint)">—</span>`)}
+        ${i.folder ? `<button class="btn-white" style="padding:7px 11px;font-size:12px" onclick="App.copyPath(${i.id})">경로 복사</button>` : ""}
+      </div>
+
       <span class="lb" style="align-self:start;margin-top:6px">상태</span>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${(isNotice ? admin : canTouch) && i.status!=="unassigned"
@@ -572,7 +620,7 @@ const App = {
       const hasObj = commentsArr(i).some((c)=>c.objection);
       return `<tr class="row${openId===i.id?" sel":""}${i.status==="done"?" done":""}" onclick="App.open(${i.id})">
         <td class="cell-title"><div class="t-title${mine?" mine":""}" title="${esc(i.title)}">${esc(i.title)}</div>
-        <div class="t-meta">${getDocId(i)?`<span class="doc-tag">${esc(getDocId(i))}</span>`:""}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}<span>${esc(i.source)}, 접수 ${md(i.received)}</span></div></td>
+        <div class="t-meta">${i.gukgam?`<span class="gk-tag">국감</span>`:""}${getDocId(i)?`<span class="doc-tag">${esc(getDocId(i))}</span>`:""}${hasObj && i.status!=="done" ? `<span class="obj-flag">이의제기</span>`:""}${i.notified&&i.notified.mail?`<span class="ch-tag">메일 안내</span>`:""}${i.notified&&i.notified.msg?`<span class="ch-tag">메신저 안내</span>`:""}<span>${esc(i.source)}, 접수 ${md(i.received)}</span></div></td>
         <td>${getDepts(i).length ? `${getDepts(i).map((d)=>deptBadge(d, d===role, !!(i.acks&&i.acks[d]))).join("")}${i.submit==="collect"?`<span class="tag-collect">취합</span>`:""}` : `<span style="color:var(--faint)">—</span>`}</td>
         <td style="white-space:nowrap">${i.kind==="notice" ? `<span class="tag-collect">공지</span>` : ddayHtml(i.due, i.status)}</td>
         <td>${chip(i.status, i.kind)}</td></tr>`;
@@ -592,7 +640,13 @@ const App = {
   setSubmit(id, v){ ref.child(id).update({ submit: v }).catch(showErr); },
   setDue(id, v){ if (v) ref.child(id).update({ due: v }).catch(showErr); },
   setReceived(id, v){ if (v) ref.child(id).update({ received: v }).catch(showErr); },
-  setStatus(id, s){ ref.child(id).update({ status: s }).catch(showErr); this._mark(id); },
+  setStatus(id, s){
+    const patch = { status: s };
+    if (s === "done") patch.doneAt = todayISO();
+    else patch.doneAt = null;
+    ref.child(id).update(patch).catch(showErr);
+    this._mark(id);
+  },
   ack(id){ this._mark(id); },
   _mark(id){
     const i = items[id];
@@ -663,6 +717,10 @@ const App = {
             <option value="direct">부서 직접 제출</option>
             <option value="collect">예산기획팀 취합 제출</option>
           </select>
+          <span class="lb">분류</span>
+          <label style="justify-self:start;display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600">
+            <input type="checkbox" id="addGukgam" ${/국정감사|국감/.test((p.title||"") + (p.category||"")) ? "checked" : ""}> 국정감사 자료
+          </label>
         </div>
         <button class="btn-primary btn-register" onclick="App.register()">이대로 등록</button>
       </div>`;
@@ -689,6 +747,7 @@ const App = {
     const p = parsed;
     const depts = [...addDepts];
     const kind = document.getElementById("addKind") ? document.getElementById("addKind").value : "submit";
+    const gukgam = !!(document.getElementById("addGukgam") && document.getElementById("addGukgam").checked);
     const submit = kind === "notice" ? "direct" : document.getElementById("addSubmit").value;
     const id = Date.now();
     const item = {
@@ -702,6 +761,7 @@ const App = {
       status: depts.length ? "assigned" : "unassigned",
       submit,
       kind,
+      gukgam: gukgam || null,
       docId: p.docId || "",
       link: p.docId ? `업무연락방 문서 ${p.docId}` : "업무연락방 링크",
     };
@@ -710,10 +770,11 @@ const App = {
     this.closeAdd();
   },
 
-  async _copy(text){
+  async _copy(text, msg){
+    const done = msg || "복사되었습니다. 메일이나 그룹웨어 쪽지에 붙여넣어 주세요.";
     try {
       await navigator.clipboard.writeText(text);
-      alert("복사되었습니다. 메일이나 그룹웨어 쪽지에 붙여넣어 주세요.");
+      alert(done);
     } catch (e) {
       const ta = document.createElement("textarea");
       ta.value = text;
@@ -721,8 +782,22 @@ const App = {
       ta.select();
       document.execCommand("copy");
       ta.remove();
-      alert("복사되었습니다. 메일이나 그룹웨어 쪽지에 붙여넣어 주세요.");
+      alert(done);
     }
+  },
+  setFolder(id, v){ ref.child(id).update({ folder: (v||"").trim() || null }).catch(showErr); },
+  toggleGukgam(id){
+    const i = items[id]; if (!i) return;
+    ref.child(id).update({ gukgam: i.gukgam ? null : true }).catch(showErr);
+  },
+  toggleNotify(id, ch){
+    const i = items[id]; if (!i) return;
+    const cur = i.notified && i.notified[ch];
+    ref.child(id).child("notified").child(ch).set(cur ? null : nowStamp()).catch(showErr);
+  },
+  copyPath(id){
+    const i = items[id];
+    if (i && i.folder) this._copy(i.folder, "경로가 복사되었습니다. 파일 탐색기 주소창에 붙여넣고 Enter를 누르면 폴더가 열립니다.");
   },
   copyNotice(id){
     const i = items[id]; if (!i) return;
@@ -752,11 +827,35 @@ const App = {
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   },
+  // 국감 요구자료 리스트 양식(연락방~비고 열 순서)으로 내보내기 — 현재 화면 목록 기준
+  exportGukgam(){
+    const q = (v) => `"${String(v ?? "").replace(/"/g,'""')}"`;
+    const mp = (t) => { const m = String(t||"").match(/([가-힣]{2,4})\s*의원/); return m ? m[1] : ""; };
+    const header = ["연락방","의정자료","의원명","위원회","정당","요청일자","제출기한","제출일자","요청 자료","상세 내용","작성(제출) 부서","참고 자료","비고","제출폴더 바로가기"];
+    const arr = Object.values(items).filter((i)=>i.gukgam).sort((a,b)=>new Date(a.received)-new Date(b.received));
+    if (!arr.length){ alert("국감으로 분류된 건이 없습니다. 상세 화면의 분류에서 국정감사 토글을 켜 주세요."); return; }
+    const rows = arr.map((i)=>[
+      getDocId(i), "", mp(i.title), "", "",
+      i.received, i.kind==="notice" ? "-" : i.due, submitDate(i) || i.doneAt || "",
+      i.title, "", getDepts(i).join(" / ") || "",
+      "", commentsArr(i).map((c)=>c.text).join(" / "),
+      i.folder ? `=HYPERLINK("${i.folder}","바로가기")` : "",
+    ].map(q).join(","));
+    const csv = "\uFEFF" + header.map(q).join(",") + "\n" + rows.join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const d = new Date(), z = (x)=>String(x).padStart(2,"0");
+    a.href = url;
+    a.download = `국정감사_요구자료_리스트_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  },
   exportCSV(){
     const q = (v) => `"${String(v ?? "").replace(/"/g,'""')}"`;
-    const header = ["접수번호(문서ID)","건명","구분","출처","접수일","마감일","담당부서","제출방식","상태","코멘트"];
+    const header = ["접수번호(문서ID)","건명","구분","출처","접수일","마감일","제출일자","담당부서","제출방식","상태","코멘트"];
     const rows = Object.values(items).sort((a,b)=>a.id-b.id).map((i)=>[
-      getDocId(i), i.title, i.kind==="notice"?"공지":"제출", i.source, i.received, i.due, getDepts(i).join(" / ") || "미지정",
+      getDocId(i), i.title, i.gukgam?"국감":(i.kind==="notice"?"공지":"제출"), i.source, i.received, i.due, submitDate(i) || i.doneAt || "", getDepts(i).join(" / ") || "미지정",
       i.kind==="notice"?"-":SUBMIT[i.submit||"direct"],
       (i.kind==="notice" && i.status==="done") ? "확인완료" : (STATUS[i.status]||STATUS.unassigned).label,
       commentsArr(i).map((c)=>`[${c.dept}${c.objection?"/이의제기":""} ${c.time}] ${c.text}`).join(" / "),
